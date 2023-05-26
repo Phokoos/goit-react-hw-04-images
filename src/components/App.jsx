@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import { findPhotoApi } from 'api/api';
 
 import css from './App.module.css';
@@ -8,116 +8,85 @@ import ImageGallery from './ImageGallery/ImageGallery';
 import Button from './Button/Button';
 import Loader from './Loader/Loader';
 
-class App extends Component {
-  state = {
-    searchingValue: '',
-    page: 1,
-    photoData: [],
-    loader: false,
-    showBtn: true,
+let prevSearchingValue = '';
+
+const App = () => {
+  const [searchingValue, setSearchingValue] = useState('');
+  const [page, setPage] = useState(1);
+  const [photoData, setPhotoData] = useState([]);
+  const [loader, setLoader] = useState(false);
+  const [showBtn, setShowBtn] = useState(true);
+
+  const clickSearch = event => {
+    event.preventDefault();
+
+    const { value } = event.target.input;
+
+    if (value === searchingValue) {
+      return alert('Please write another name');
+    }
+
+    setPage(1);
+    setSearchingValue(value);
+    setPhotoData([]);
+    setShowBtn(true);
   };
 
-  scrollSmooth = () => {
-    window.scrollBy({
-      top: window.innerHeight,
-      behavior: 'smooth',
-    });
-  };
-
-  requestToApiAnd = prevState => {
-    const { searchingValue, page } = this.state;
+  useEffect(() => {
+    if (searchingValue === '') {
+      return;
+    }
     try {
-      this.setState({
-        loader: true,
-      });
+      setLoader(true);
 
       findPhotoApi(searchingValue, page)
         .then(data => {
           if (data.total <= 12 * page) {
-            this.setState({
-              showBtn: false,
-            });
+            setShowBtn(false);
             alert('You see all pictures now');
           }
-
           const newData = [];
 
           data.hits.forEach(obj => {
             const { id, webformatURL, largeImageURL } = obj;
 
             newData.push({ id, webformatURL, largeImageURL });
-
-            if (prevState.searchingValue === searchingValue) {
-              return this.setState({
-                photoData: [...prevState.photoData, ...newData],
-              });
-            }
-
-            this.setState({
-              photoData: [...newData],
-            });
           });
+
+          if (prevSearchingValue === searchingValue) {
+            setPhotoData(state => {
+              return [...state, ...newData];
+            });
+          } else {
+            prevSearchingValue = searchingValue;
+            setPhotoData([...newData]);
+          }
         })
         .catch(error => console.log(error))
         .finally(() => {
-          this.setState({
-            loader: false,
-          });
+          setLoader(false);
         });
     } catch (error) {
       console.log(error);
     }
+  }, [searchingValue, page]);
+
+  const clickLoadMore = () => {
+    setPage(state => state + 1);
   };
 
-  componentDidUpdate(prevProps, prevState) {
-    const { searchingValue, page } = this.state;
+  return (
+    <div className={css.app}>
+      <Searchbar onSubmit={clickSearch} />
+      <ImageGallery cards={photoData} />
 
-    if (
-      prevState.searchingValue !== searchingValue ||
-      prevState.page !== page
-    ) {
-      this.requestToApiAnd(prevState);
-    }
-    this.scrollSmooth();
-  }
+      {photoData.length !== 0 && showBtn && loader !== true && (
+        <Button loadMoreBtnClick={clickLoadMore} />
+      )}
 
-  clickSearch = event => {
-    event.preventDefault();
-
-    const { value } = event.target.input;
-
-    if (value === this.state.searchingValue) {
-      return alert('Please write another name');
-    }
-    this.setState({
-      page: 1,
-      searchingValue: value,
-      photoData: [],
-      showBtn: true,
-    });
-  };
-
-  clickLoadMore = () => {
-    this.setState(({ page }) => ({
-      page: page + 1,
-    }));
-  };
-
-  render() {
-    const { photoData, loader, showBtn } = this.state;
-    return (
-      <div className={css.app}>
-        <Searchbar onSubmit={this.clickSearch} />
-        <ImageGallery cards={photoData} />
-
-        {photoData.length !== 0 && showBtn && loader !== true && (
-          <Button loadMoreBtnClick={this.clickLoadMore} />
-        )}
-
-        {loader && <Loader />}
-      </div>
-    );
-  }
-}
+      {loader && <Loader />}
+    </div>
+  );
+};
 
 export default App;
